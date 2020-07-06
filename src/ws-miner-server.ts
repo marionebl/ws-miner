@@ -33,13 +33,28 @@ export class WsMinerServer {
       async (req: http.IncomingMessage, res: http.ServerResponse) => {
         this.log.info(`[%s] %s`, req.method, req.url);
 
+        console.log(req.url);
+
+        if (req.url?.startsWith("/api/health")) {
+          res.writeHead(200, "OK", {
+            ContentType: "application/json",
+          });
+
+          res.write(JSON.stringify({
+            connections: this.connections.size
+          }));
+
+          res.end();
+          return;
+        }
+
         const fragments = req.url?.split("/") || [];
         const requestId = nanoid();
         const connectionId = fragments.filter(Boolean)[0] || "";
         const connection = this.connections.get(connectionId);
 
         if (!connection) {
-          res.writeHead(404, 'Not Found');
+          res.writeHead(404, "Not Found");
           res.end();
           return;
         }
@@ -47,13 +62,13 @@ export class WsMinerServer {
         const upstreamUrl = req.url!.replace(`/${connectionId}`, "");
         this.log.info(`[%s] %s - %s`, req.method, upstreamUrl, connectionId);
 
-        connection.on('message', (raw) => {
-          if (typeof raw !== 'string') {
+        connection.on("message", (raw) => {
+          if (typeof raw !== "string") {
             return;
           }
 
           const [, message] = deserialize<any, any>(raw);
-          
+
           if (!message) {
             return;
           }
@@ -65,13 +80,17 @@ export class WsMinerServer {
           }
 
           switch (message.header.type) {
-            case 'response-start':
-              res.writeHead(message.body.code, message.body.status, message.body.headers);
+            case "response-start":
+              res.writeHead(
+                message.body.code,
+                message.body.status,
+                message.body.headers
+              );
               break;
-            case 'response-data':
+            case "response-data":
               res.write(message.body);
               break;
-            case 'response-end':
+            case "response-end":
               res.end();
               break;
           }
@@ -85,9 +104,7 @@ export class WsMinerServer {
         );
 
         req.on("data", (data) =>
-          connection.send(
-            serialize({ type: "request-data", requestId }, data)
-          )
+          connection.send(serialize({ type: "request-data", requestId }, data))
         );
 
         req.on("end", () =>
@@ -123,9 +140,7 @@ export class WsMinerServer {
 
     connection.send(serialize({ type: "connection" }, egress));
 
-    connection.on("message", (raw) => {
-
-    });
+    connection.on("message", (raw) => {});
 
     connection.on("close", () => {
       const id = this.ids.get(connection);
