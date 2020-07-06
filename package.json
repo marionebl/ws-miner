@@ -6,7 +6,7 @@
   "license": "MIT",
   "bin": {
     "ws-miner": "./cli/ws-miner-cli.js",
-    "ws-miner-seerver": "./cli/ws-miner-server-cli.js"
+    "ws-miner-server": "./cli/ws-miner-server-cli.js"
   },
   "files": [
     "cli",
