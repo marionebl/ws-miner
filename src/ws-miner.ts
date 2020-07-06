@@ -1,3 +1,4 @@
+import url from "url";
 import WebSocket from "ws";
 import { nanoid } from "nanoid";
 import got from "got";
@@ -16,10 +17,10 @@ export class WsMiner {
     private readonly options: WsMinerOptions
   ) {
     this.socket.on("message", (raw) => {
-      if (typeof raw !== 'string') {
+      if (typeof raw !== "string") {
         return;
       }
-      
+
       const [, message] = deserialize<any, any>(raw);
 
       if (!message) {
@@ -42,51 +43,63 @@ export class WsMiner {
     const type = message.header.type as string;
     const requestId = message.header.requestId;
 
-    switch(type) {
-      case 'connection': {
+    switch (type) {
+      case "connection": {
         console.log(message.body);
         break;
       }
-      case 'request-start': {
+      case "request-start": {
+        const { host } = url.parse(this.options.upstream);
+        const headers = { ...message.body.headers, host };
+
         const request = got.stream({
           url: `${this.options.upstream}${message.body.url}`,
           method: message.body.method,
-          headers: message.body.headers
+          headers,
         });
 
-        request.on('data', data => this.socket.send(serialize({ type: 'response-data', requestId }, String(data))));
+        request.on("data", (data) =>
+          this.socket.send(
+            serialize({ type: "response-data", requestId }, String(data))
+          )
+        );
 
         this.requests.set(message.header.requestId, request);
 
         const head = await got.head({
           url: `${this.options.upstream}${message.body.url}`,
-          headers: message.body.headers
+          headers,
         });
 
-        this.socket.send(serialize({ type: 'response-start', requestId }, {
-          code: head.statusCode,
-          status: head.statusMessage,
-          headers: head.headers
-        }));
+        this.socket.send(
+          serialize(
+            { type: "response-start", requestId },
+            {
+              code: head.statusCode,
+              status: head.statusMessage,
+              headers: head.headers,
+            }
+          )
+        );
         break;
       }
-      case 'request-data': {
+      case "request-data": {
         const request = this.requests.get(message.header.requestId);
 
-        if (request && request.writable) {
+        if (request && request.writable && request.end !== request.write) {
           request.write(message.body);
         }
         break;
       }
-      case 'request-end': {
+      case "request-end": {
         const request = this.requests.get(message.header.requestId);
 
         if (request) {
-          request.on('end', () => 
-            this.socket.send(serialize({ type: 'response-end', requestId }, ''))
+          request.on("end", () =>
+            this.socket.send(serialize({ type: "response-end", requestId }, ""))
           );
 
-          if (request.writable) {
+          if (request.writable && request.end !== request.write) {
             request.end();
           }
         }

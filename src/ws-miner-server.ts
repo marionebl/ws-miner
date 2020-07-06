@@ -33,8 +33,6 @@ export class WsMinerServer {
       async (req: http.IncomingMessage, res: http.ServerResponse) => {
         this.log.info(`[%s] %s`, req.method, req.url);
 
-        console.log(req.url);
-
         if (req.url?.startsWith("/api/health")) {
           res.writeHead(200, "OK", {
             ContentType: "application/json",
@@ -50,7 +48,8 @@ export class WsMinerServer {
 
         const fragments = req.url?.split("/") || [];
         const requestId = nanoid();
-        const connectionId = fragments.filter(Boolean)[0] || "";
+
+        const connectionId = req.headers['x-ws-miner-id'] as string || fragments.filter(Boolean)[0] || "";
         const connection = this.connections.get(connectionId);
 
         if (!connection) {
